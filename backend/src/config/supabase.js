@@ -1,7 +1,8 @@
+import './env.js'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_ANON_KEY
+const supabaseUrl = process.env.SUPABASE_URL?.trim();
+const supabaseKey = process.env.SUPABASE_ANON_KEY?.trim();
 
 if (!supabaseUrl || !supabaseKey) {
   console.warn('Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.')
