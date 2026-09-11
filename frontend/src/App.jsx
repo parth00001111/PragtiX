@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowRight, Bell, Building2, CheckCircle2, CircleUserRound,
   Factory, FileText, GraduationCap, Handshake, Languages, Lightbulb,
   MapPin, Menu, Search, ShieldCheck, Sparkles, Target, Upload, Users, X,
 } from 'lucide-react'
 import heroImage from './assets/jharkhand-innovation-hero.png'
+import AuthModal from './components/AuthModal'
+import { authApi } from './lib/authApi'
 import './App.css'
 
 const themes = [
@@ -35,8 +37,18 @@ function App() {
   const [lang, setLang] = useState('EN')
   const [showSubmission, setShowSubmission] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [showAuth, setShowAuth] = useState(false)
+  const [user, setUser] = useState(null)
   const role = roles[activeRole]
   const RoleIcon = role.icon
+
+  useEffect(() => {
+    authApi.me().then(({ user: currentUser }) => setUser(currentUser)).catch(() => {})
+  }, [])
+
+  const logout = async () => {
+    try { await authApi.logout() } finally { setUser(null) }
+  }
 
   const scrollTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
@@ -63,7 +75,7 @@ function App() {
             <button onClick={() => scrollTo('ecosystem')}>Ecosystem</button>
             <button onClick={() => scrollTo('impact')}>Impact</button>
             <button onClick={() => scrollTo('about')}>About</button>
-            <button className="nav-login" onClick={() => window.alert('Secure role-based sign-in will connect to the authentication service in the next build.') }><CircleUserRound size={17} /> Sign in</button>
+            {user ? <button className="nav-login" onClick={logout} title="Sign out"><CircleUserRound size={17} /> {user.name}</button> : <button className="nav-login" onClick={() => setShowAuth(true)}><CircleUserRound size={17} /> Sign in</button>}
             <button className="primary small" onClick={() => scrollTo('submit')}>Submit a challenge <ArrowRight size={16} /></button>
           </nav>
           <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle navigation">{menuOpen ? <X /> : <Menu />}</button>
@@ -192,6 +204,8 @@ function App() {
           </> : <div className="success-state"><CheckCircle2 size={48} /><h2>Challenge draft created.</h2><p>Your details have been captured for this prototype. The full portal will next collect location and multimedia evidence.</p><button className="primary" onClick={() => { setShowSubmission(false); setSubmitted(false) }}>Done</button></div>}
         </div>
       </div>}
+
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthenticated={setUser} />}
 
       <footer>
         <div className="container footer-main">
