@@ -1,29 +1,559 @@
-
 generator client {
   provider = "prisma-client-js"
 }
 
-
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
+// ==========================================================
+// ENUMS
+// ==========================================================
+
 enum Role {
   CITIZEN
-  UNIVERSITY
+  OFFICIAL
+  DEPT_ADMIN      
+  FACULTY
+  STUDENT
   INDUSTRY
-  ADMIN
+  SUPER_ADMIN
+}
+
+enum Domain {
+  EDUCATION
+  HEALTHCARE
+  AGRICULTURE
+  WATER_MANAGEMENT
+  SANITATION
+  ENVIRONMENT
+  RURAL_LIVELIHOOD
+  ACCESSIBILITY
+  URBAN_INFRASTRUCTURE
+  PUBLIC_SERVICE_DELIVERY
+  ENERGY
+  OTHER
+}
+
+enum ProblemStatus {
+  SUBMITTED
+  VERIFIED
+  PRIORITIZED
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+  ESCALATED        // 
+}
+
+enum AttachmentType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+enum IndustryType {
+  STARTUP
+  MSME
+  CSR
+  RESEARCH_LAB
+  CORPORATE
+  GOVERNMENT_BODY
+}
+
+enum PartnershipRole {
+  MENTOR
+  FUNDER
+  IMPLEMENTER
+  TESTING_PARTNER
+  TECH_PROVIDER
+}
+
+enum ProjectStatus {
+  PROPOSED
+  APPROVED
+  PROTOTYPE
+  PILOT_TESTING
+  DEPLOYED
+  IMPACT_MEASURED
+  DROPPED
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+}
+
+enum TeamMemberRole {
+  FACULTY_MENTOR
+  STUDENT_LEAD
+  STUDENT_MEMBER
+}
+
+enum FundingSource {
+  INDUSTRY
+  CSR
+  GOVERNMENT_GRANT
+  UNIVERSITY_INTERNAL
+}
+
+enum ProposalStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+}
+
+enum AuditAction {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  VERIFIED
+  ESCALATED
+  UPDATED
+  DELETED
+  APPROVED
+  REJECTED
+}
+
+model District {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  blocks    Block[]
+  users     User[]
+  createdAt DateTime @default(now())
+}
+
+model Block {
+  id         String     @id @default(uuid())
+  name       String
+  districtId String
+  district   District   @relation(fields: [districtId], references: [id])
+  panchayats Panchayat[]
+  problems   Problem[]
+
+  @@unique([districtId, name])
+}
+
+model Panchayat {
+  id       String   @id @default(uuid())
+  name     String
+  blockId  String
+  block    Block    @relation(fields: [blockId], references: [id])
+  problems Problem[]
+
+  @@unique([blockId, name])
+}
+
+model GovDepartment {
+  id        String   @id @default(uuid())
+  name      String   @unique   
+  domains   Domain[]           
+  officials User[]
+  createdAt DateTime @default(now())
 }
 
 model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  password     String
+  role         Role     @default(CITIZEN)
+  phone        String?
+  districtId   String?
+  district     District? @relation(fields: [districtId], references: [id])
+  departmentId String?
+  department   GovDepartment? @relation(fields: [departmentId], references: [id])
+
+  isActive     Boolean  @default(true)
+  deletedAt    DateTime? 
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  problemsSubmitted Problem[]        @relation("SubmittedProblems")
+  problemsVerified  Problem[]        @relation("VerifiedProblems")
+  universityProfile UniversityProfile?
+  industryProfile   IndustryProfile?
+  facultyProfile    FacultyProfile?
+  teamMemberships   TeamMember[]
+  notifications     Notification[]
+  comments          Comment[]
+  feedbacks         Feedback[]
+  upvotes           ProblemUpvote[]
+  auditLogs         AuditLog[]
+  sessions          Session[]
+  ratingsGiven      Rating[]         @relation("RatingGivenBy")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+
+model Problem {
+  id          String        @id @default(uuid())
+  title       String
+  description String
+  domain      Domain        @default(OTHER)
+  status      ProblemStatus @default(SUBMITTED)
+
+  districtId  String?
+  blockId     String?
+  block       Block?        @relation(fields: [blockId], references: [id])
+  panchayatId String?
+  panchayat   Panchayat?    @relation(fields: [panchayatId], references: [id])
+  latitude    Float?
+  longitude   Float?
+
+  peopleAffected Int?
+
+  
+  severityScore         Float?
+  urgencyScore          Float?
+  geographicImpactScore Float?
+  feasibilityScore      Float?
+  communitySupportScore Float?   
+  priorityScore         Float?
+
+  isDuplicateOf String?
+  duplicateNote String?
+
+  // SLA / escalation
+  slaDeadline   DateTime?
+  isEscalated   Boolean   @default(false)
+  escalatedAt   DateTime?
+
+  isPublic      Boolean   @default(true)  
+  viewCount     Int       @default(0)
+
+  submittedById String
+  submittedBy   User      @relation("SubmittedProblems", fields: [submittedById], references: [id])
+
+  verifiedById  String?
+  verifiedBy    User?     @relation("VerifiedProblems", fields: [verifiedById], references: [id])
+  verifiedAt    DateTime?
+
+  attachments   Attachment[]
+  assignments   Assignment[]
+  comments      Comment[]
+  feedbacks     Feedback[]
+  upvotes       ProblemUpvote[]
+  tags          ProblemTag[]
+  auditLogs     AuditLog[]
+
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, domain])
+  @@index([blockId])
+}
+
+model ProblemUpvote {
   id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(CITIZEN)
-  phone     String?
-  district  String?
+  problemId String
+  problem   Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([problemId, userId])   
+}
+
+model Tag {
+  id       String       @id @default(uuid())
+  name     String       @unique
+  problems ProblemTag[]
+}
+
+model ProblemTag {
+  id        String  @id @default(uuid())
+  problemId String
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id])
+
+  @@unique([problemId, tagId])
+}
+
+model Attachment {
+  id        String         @id @default(uuid())
+  url       String
+  type      AttachmentType
+  problemId String
+  problem   Problem        @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+}
+
+
+
+model UniversityProfile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id])
+  universityName      String
+  district            String
+  hasIncubationCenter Boolean  @default(false)
+
+  departments Department[]
+  assignments Assignment[]
+  teams       Team[]
+  ratings     Rating[]     @relation("UniversityRatings")
+
+  avgRating   Float?       
+}
+
+model Department {
+  id              String            @id @default(uuid())
+  name            String
+  domainExpertise Domain[]
+  universityId    String
+  university      UniversityProfile @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  faculty FacultyProfile[]
+  labs    Lab[]
+}
+
+model FacultyProfile {
+  id             String     @id @default(uuid())
+  userId         String     @unique
+  user           User       @relation(fields: [userId], references: [id])
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id])
+  specialization String?
+}
+
+model Lab {
+  id           String     @id @default(uuid())
+  name         String
+  facilityType String?
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+}
+
+model Assignment {
+  id           String            @id @default(uuid())
+  problemId    String
+  problem      Problem           @relation(fields: [problemId], references: [id])
+  universityId String
+  university   UniversityProfile @relation(fields: [universityId], references: [id])
+  matchScore   Float?
+  assignedAt   DateTime          @default(now())
+
+  project Project?
+}
+
+model Team {
+  id           String   @id @default(uuid())
+  name         String
+  universityId String
+  university   UniversityProfile @relation(fields: [universityId], references: [id])
+  members      TeamMember[]
+  project      Project?
+  createdAt    DateTime @default(now())
+}
+
+model TeamMember {
+  id     String         @id @default(uuid())
+  teamId String
+  team   Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId String
+  user   User           @relation(fields: [userId], references: [id])
+  role   TeamMemberRole
+
+  @@unique([teamId, userId])
+}
+
+
+
+model Proposal {
+  id         String         @id @default(uuid())
+  projectId  String
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version    Int            @default(1)
+  content    String
+  status     ProposalStatus @default(DRAFT)
+  reviewNote String?
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@unique([projectId, version])
+}
+
+
+
+model IndustryProfile {
+  id      String       @id @default(uuid())
+  userId  String       @unique
+  user    User         @relation(fields: [userId], references: [id])
+  orgName String
+  type    IndustryType
+  sector  String?
+
+  partnerships Partnership[]
+  fundings     Funding[]
+  ratings      Rating[]      @relation("IndustryRatings")
+  avgRating    Float?
+}
+
+model Partnership {
+  id         String          @id @default(uuid())
+  projectId  String
+  project    Project         @relation(fields: [projectId], references: [id])
+  industryId String
+  industry   IndustryProfile @relation(fields: [industryId], references: [id])
+  role       PartnershipRole
+  createdAt  DateTime        @default(now())
+}
+
+model Funding {
+  id         String           @id @default(uuid())
+  projectId  String
+  project    Project          @relation(fields: [projectId], references: [id])
+  source     FundingSource
+  industryId String?
+  industry   IndustryProfile? @relation(fields: [industryId], references: [id])
+  amount     Float
+  grantedAt  DateTime         @default(now())
+}
+
+
+
+model Project {
+  id          String        @id @default(uuid())
+  title       String
+  description String
+  status      ProjectStatus @default(PROPOSED)
+
+  assignmentId String     @unique
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+
+  teamId String @unique
+  team   Team   @relation(fields: [teamId], references: [id])
+
+  budgetAllocated Float?
+  budgetSpent     Float    @default(0)
+
+  partnerships Partnership[]
+  fundings     Funding[]
+  milestones   Milestone[]
+  proposals    Proposal[]
+  expenses     Expense[]
+  impact       ImpactRecord?
+
+  patentFiled    Boolean  @default(false)
+  startupCreated Boolean  @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  description String
+  amount      Float
+  spentAt     DateTime @default(now())
+}
+
+model Milestone {
+  id        String          @id @default(uuid())
+  projectId String
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  dueDate   DateTime?
+  status    MilestoneStatus @default(PENDING)
+  createdAt DateTime        @default(now())
+}
+
+
+
+model Rating {
+  id           String   @id @default(uuid())
+  givenById    String
+  givenBy      User     @relation("RatingGivenBy", fields: [givenById], references: [id])
+  universityId String?
+  university   UniversityProfile? @relation("UniversityRatings", fields: [universityId], references: [id])
+  industryId   String?
+  industry     IndustryProfile?   @relation("IndustryRatings", fields: [industryId], references: [id])
+  score        Int      // 1-5
+  remark       String?
+  createdAt    DateTime @default(now())
+}
+
+
+
+model ImpactRecord {
+  id                String   @id @default(uuid())
+  projectId         String   @unique
+  project           Project  @relation(fields: [projectId], references: [id])
+
+  citizensBenefited Int      @default(0)
+  villagesCovered   Int      @default(0)
+  costSaved         Float?
+  jobsCreated       Int      @default(0)
+
+  measuredAt        DateTime @default(now())
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  problemId String
+  problem   Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+}
+
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  problemId String
+  problem   Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  problemId  String?
+  problem    Problem?    @relation(fields: [problemId], references: [id])
+  performedById String
+  performedBy   User      @relation(fields: [performedById], references: [id])
+  action     AuditAction
+  details    String?     // JSON string of before/after state
+  createdAt  DateTime    @default(now())
+
+  @@index([problemId])
 }
