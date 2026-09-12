@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
+import { ALL_ROLES } from "../config/rbac.js";
 
 const prisma = new PrismaClient();
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
@@ -55,10 +56,10 @@ export const protect = async (req, res, next) => {
       });
     }
 
-    if (!user.isActive) {
+    if (!user.isActive || !ALL_ROLES.includes(user.role)) {
       return res.status(403).json({
         success: false,
-        message: "Account has been deactivated",
+        message: "Account is inactive or has an unsupported role",
       });
     }
 
