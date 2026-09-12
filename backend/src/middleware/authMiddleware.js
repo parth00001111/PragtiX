@@ -1,8 +1,7 @@
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../../PrismaClient.js";
 import { ALL_ROLES } from "../config/rbac.js";
 
-const prisma = new PrismaClient();
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
 
 // ---------------- Protect: verify access token ----------------
@@ -35,6 +34,13 @@ export const protect = async (req, res, next) => {
       });
     }
 
+    if (typeof decoded.id !== 'string' || typeof decoded.sid !== 'string') {
+      return res.status(401).json({success:false,message:'Please sign in again'});
+    }
+    const session = await prisma.session.findUnique({where:{id:decoded.sid}});
+    if (!session || session.userId !== decoded.id || session.expiresAt <= new Date()) {
+      return res.status(401).json({success:false,message:'Session expired or revoked; please sign in again'});
+    }
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: {
@@ -66,11 +72,7 @@ export const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong in authentication",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 

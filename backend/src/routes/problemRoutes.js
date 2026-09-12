@@ -1,55 +1,22 @@
 import express from "express";
-import {
-  createProblem,
-  getAllProblems,
-  getProblemById,
-  updateProblem,
-  verifyProblem,
-  deleteProblem,
-  upvoteProblem,
-  addComment,
-  addFeedback,
-} from "../controller/problemController.js";
-import {
-  createProblemSchema,
-  updateProblemSchema,
-  verifyProblemSchema,
-  addCommentSchema,
-  addFeedbackSchema,
-  validate,
-} from "../validations/problemValidation.js";
-import { protect, authorize } from "../middleware/authMiddleware.js";
+import * as c from "../controller/problemController.js";
+import * as v from "../validations/problemValidation.js";
+import { validate,validateIds,query } from "../validations/common.js";
+import { protect,authorize } from "../middleware/authMiddleware.js";
 import { upload } from "../middleware/uploadMiddleware.js";
-import { ALL_ROLES, STAFF_ROLES } from "../config/rbac.js";
+import { STAFF_ROLES } from "../config/rbac.js";
 import { requireProblemAccess } from "../middleware/problemAccessMiddleware.js";
-
-const router = express.Router();
-router.use(protect, authorize(...ALL_ROLES));
-
-// Every supported role can submit; reads and changes also check problem access.
-router.post(
-  "/",
-  upload.array("attachments", 5),
-  validate(createProblemSchema),
-  createProblem
-);
-router.get("/", getAllProblems);
-router.get("/:id", requireProblemAccess(), getProblemById);
-router.patch("/:id", validate(updateProblemSchema), requireProblemAccess("update"), updateProblem);
-router.delete("/:id", requireProblemAccess("delete"), deleteProblem);
-
-// engagement routes
-router.post("/:id/upvote", requireProblemAccess(), upvoteProblem);
-router.post("/:id/comment", requireProblemAccess(), validate(addCommentSchema), addComment);
-router.post("/:id/feedback", requireProblemAccess(), validate(addFeedbackSchema), addFeedback);
-
-// official-only routes
-router.patch(
-  "/:id/verify",
-  authorize(...STAFF_ROLES),
-  requireProblemAccess(),
-  validate(verifyProblemSchema),
-  verifyProblem
-);
-
+const router=express.Router();
+router.use(protect);
+router.post("/",upload.array("attachments",5),validate(v.createProblemSchema),c.createProblem);
+router.get("/",query(v.problemQuerySchema),c.getAllProblems);
+router.get("/:id",validateIds("id"),requireProblemAccess(),c.getProblemById);
+router.patch("/:id",validateIds("id"),requireProblemAccess("update"),validate(v.updateProblemSchema),c.updateProblem);
+router.delete("/:id",validateIds("id"),requireProblemAccess("delete"),c.deleteProblem);
+router.post("/:id/upvote",validateIds("id"),requireProblemAccess(),c.upvoteProblem);
+router.post("/:id/comment",validateIds("id"),requireProblemAccess(),validate(v.addCommentSchema),c.addComment);
+router.post("/:id/feedback",validateIds("id"),requireProblemAccess(),validate(v.addFeedbackSchema),c.addFeedback);
+router.get("/:id/history",validateIds("id"),requireProblemAccess(),query(),c.getProblemHistory);
+router.get("/:id/duplicates",authorize(...STAFF_ROLES),validateIds("id"),requireProblemAccess(),c.getDuplicateSuggestions);
+router.patch("/:id/verify",authorize(...STAFF_ROLES),validateIds("id"),requireProblemAccess(),validate(v.verifyProblemSchema),c.verifyProblem);
 export default router;

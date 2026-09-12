@@ -1,9 +1,8 @@
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../../PrismaClient.js";
 
-const prisma = new PrismaClient();
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
@@ -12,8 +11,8 @@ const REFRESH_TOKEN_EXPIRY = "7d";
 const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ---------------- Helper: generate tokens ----------------
-const generateAccessToken = (user) =>
-  jwt.sign({ id: user.id, role: user.role }, ACCESS_TOKEN_SECRET, {
+const generateAccessToken = (user, sid) =>
+  jwt.sign({ id: user.id, role: user.role, sid }, ACCESS_TOKEN_SECRET, {
     expiresIn: ACCESS_TOKEN_EXPIRY,
   });
 
@@ -24,12 +23,12 @@ const generateRefreshToken = (user) =>
   });
 
 // ---------------- REGISTER ----------------
-export const register = async (req, res) => {
+export const register = async (req, res, next) => {
   try {
     const { name, email, password, phone, role, districtId, departmentId } =
       req.body;
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findFirst({ where: { email: {equals:email,mode:"insensitive"} } });
     if (existingUser) {
       return res.status(409).json({
         success: false,
@@ -65,20 +64,16 @@ export const register = async (req, res) => {
       data: user,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Registration failed",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
 // ---------------- LOGIN ----------------
-export const login = async (req, res) => {
+export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({ where: { email: {equals:email,mode:"insensitive"} } });
 
     if (!user || user.deletedAt) {
       return res.status(401).json({
@@ -102,11 +97,13 @@ export const login = async (req, res) => {
       });
     }
 
-    const accessToken = generateAccessToken(user);
+    const sessionId = randomUUID();
+    const accessToken = generateAccessToken(user, sessionId);
     const refreshToken = generateRefreshToken(user);
 
     await prisma.session.create({
       data: {
+        id: sessionId,
         userId: user.id,
         refreshToken,
         userAgent: req.headers["user-agent"] || null,
@@ -130,16 +127,12 @@ export const login = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Login failed",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
 // ---------------- REFRESH TOKEN ----------------
-export const refreshAccessToken = async (req, res) => {
+export const refreshAccessToken = async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
 
@@ -172,23 +165,20 @@ export const refreshAccessToken = async (req, res) => {
       });
     }
 
-    const newAccessToken = generateAccessToken(user);
+    if (session.userId !== user.id) return res.status(401).json({success:false,message:"Invalid refresh session"});
+    const newAccessToken = generateAccessToken(user, session.id);
 
     return res.status(200).json({
       success: true,
       data: { accessToken: newAccessToken },
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Could not refresh token",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
 // ---------------- LOGOUT ----------------
-export const logout = async (req, res) => {
+export const logout = async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
 
@@ -206,26 +196,18 @@ export const logout = async (req, res) => {
       message: "Logged out successfully",
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Logout failed",
-      error: error.message,
-    });
+    return next(error);
   }
 };
 
 // ---------------- GET LOGGED-IN USER ----------------
-export const getMe = async (req, res) => {
+export const getMe = async (req, res, next) => {
   try {
     return res.status(200).json({
       success: true,
       data: req.user,
     });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Could not fetch user profile",
-      error: error.message,
-    });
+    return next(error);
   }
 };

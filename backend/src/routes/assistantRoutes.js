@@ -1,0 +1,11 @@
+import express from "express";
+import {z} from "zod";
+import {protect} from "../middleware/authMiddleware.js";
+import {rateLimit} from "../middleware/rateLimitMiddleware.js";
+import {validate,uuid} from "../validations/common.js";
+import {chat,analyze} from "../controller/assistantController.js";
+const router=express.Router();
+router.use(protect,rateLimit({limit:10,windowMs:60000}));
+router.post("/chat",validate(z.object({message:z.string().trim().min(1).max(4000),problemId:uuid.optional()})),chat);
+router.post("/analyze",validate(z.object({title:z.string().trim().min(5).max(200),description:z.string().trim().min(10).max(10000)})),analyze);
+export default router;

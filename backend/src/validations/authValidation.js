@@ -3,14 +3,15 @@ import { PUBLIC_ROLES } from "../config/rbac.js";
 
 // ---------------- REGISTER ----------------
 export const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters").max(100),
-  email: z.string().email("Invalid email address"),
+  name: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
+  email: z.string().trim().toLowerCase().max(254).email("Invalid email address"),
   password: z
     .string()
+    .refine(v=>Buffer.byteLength(v,"utf8")<=72,"Password must be at most 72 bytes")
     .min(8, "Password must be at least 8 characters")
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
-  phone: z.string().optional(),
+  phone: z.string().trim().max(25).optional(),
   role: z
     .enum(PUBLIC_ROLES)
     .optional(),
@@ -20,18 +21,18 @@ export const registerSchema = z.object({
 
 // ---------------- LOGIN ----------------
 export const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().trim().toLowerCase().max(254).email("Invalid email address"),
+  password: z.string().min(1, "Password is required").max(1000),
 });
 
 // ---------------- REFRESH TOKEN ----------------
 export const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, "Refresh token is required"),
+  refreshToken: z.string().min(1, "Refresh token is required").max(4096),
 });
 
 // ---------------- FORGOT / RESET PASSWORD ----------------
 export const forgotPasswordSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().toLowerCase().max(254).email("Invalid email address"),
 });
 
 export const resetPasswordSchema = z.object({
@@ -44,19 +45,4 @@ export const resetPasswordSchema = z.object({
 });
 
 // ---------------- Generic validate middleware ----------------
-export const validate = (schema) => (req, res, next) => {
-  const result = schema.safeParse(req.body);
-  if (!result.success) {
-    const errors = result.error.issues.map((e) => ({
-      field: e.path.join("."),
-      message: e.message,
-    }));
-    return res.status(400).json({
-      success: false,
-      message: "Validation failed",
-      errors,
-    });
-  }
-  req.body = result.data;
-  next();
-};
+export { validate } from "./common.js";

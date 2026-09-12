@@ -1,15 +1,15 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../../PrismaClient.js";
 import { canAccessProblem, MODERATION_FIELDS, STAFF_ROLES } from "../config/rbac.js";
 
-const prisma = new PrismaClient();
 
+import { canReadProblem } from "../services/problemService.js";
 export const requireProblemAccess = (action = "read") => async (req, res, next) => {
   try {
     const problem = await prisma.problem.findUnique({ where: { id: req.params.id } });
     if (!problem || problem.deletedAt) {
       return res.status(404).json({ success: false, message: "Problem not found" });
     }
-    if (!canAccessProblem(req.user, problem, action)) {
+    if (!(action === "read" ? await canReadProblem(req.user, problem) : canAccessProblem(req.user, problem, action))) {
       return res.status(action === "read" ? 404 : 403).json({
         success: false,
         message: action === "read" ? "Problem not found" : `You are not allowed to ${action} this problem`,
@@ -34,7 +34,7 @@ export const requireAttachmentAccess = async (req, res, next) => {
       where: { url: `/uploads/problems/${req.params.filename}` },
       include: { problem: true },
     });
-    if (!attachment || !canAccessProblem(req.user, attachment.problem)) {
+    if (!attachment || !await canReadProblem(req.user, attachment.problem)) {
       return res.status(404).json({ success: false, message: "Attachment not found" });
     }
     res.set("Cache-Control", "private, no-store");
