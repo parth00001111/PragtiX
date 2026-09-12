@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PUBLIC_ROLES } from "../config/rbac.js";
 
 // ---------------- REGISTER ----------------
 export const registerSchema = z.object({
@@ -11,12 +12,7 @@ export const registerSchema = z.object({
     .regex(/[0-9]/, "Password must contain at least one number"),
   phone: z.string().optional(),
   role: z
-    .enum([
-      "CITIZEN",
-      "FACULTY",
-      "STUDENT",
-      "INDUSTRY",
-    ])
+    .enum(PUBLIC_ROLES)
     .optional(),
   districtId: z.string().uuid().optional(),
   departmentId: z.string().uuid().optional(),
