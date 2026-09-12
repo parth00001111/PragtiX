@@ -552,7 +552,7 @@ model AuditLog {
   performedById String
   performedBy   User      @relation(fields: [performedById], references: [id])
   action     AuditAction
-  details    String?     // JSON string of before/after state
+  details    String?
   createdAt  DateTime    @default(now())
 
   @@index([problemId])
