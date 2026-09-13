@@ -6,11 +6,12 @@ import {
   LayoutDashboard, Lightbulb, LogOut, MapPin, Menu, MoreHorizontal, Search,
   Settings, ShieldCheck, Target, TrendingUp, Users, X,
 } from 'lucide-react'
+import samadhanSetuLogo from '../assets/samadhan-setu-logo.png'
 import './AdminDashboard.css'
 
 const navItems = [
   ['Overview', LayoutDashboard], ['Challenges', FileText], ['Projects', Target],
-  ['Institutions', GraduationCap], ['Industry partners', Factory], ['Analytics', BarChart3],
+  ['Solution evaluation', FileCheck2], ['Institutions', GraduationCap], ['Industry partners', Factory], ['Analytics', BarChart3],
 ]
 
 const challenges = [
@@ -52,7 +53,7 @@ function AdminDashboard() {
 
   return <div className="admin-shell">
     <aside className={sidebarOpen ? 'admin-sidebar open' : 'admin-sidebar'}>
-      <div className="admin-brand"><span className="admin-brand-mark"><Lightbulb size={21} /></span><div><strong>Pragati<span>X</span></strong><small>Government administration</small></div><button className="sidebar-close" onClick={() => setSidebarOpen(false)}><X size={20} /></button></div>
+      <div className="admin-brand"><img src={samadhanSetuLogo} alt="SamadhanSetu"/><small>Government administration</small><button className="sidebar-close" onClick={() => setSidebarOpen(false)}><X size={20} /></button></div>
       <div className="admin-context"><span>Workspace</span><button><span className="jh-seal">JH</span><span><strong>State Mission Cell</strong><small>Jharkhand</small></span><ChevronDown size={16} /></button></div>
       <nav className="admin-nav">
         <span className="nav-label">Management</span>
@@ -73,7 +74,7 @@ function AdminDashboard() {
       </header>
 
       <div className="admin-content">
-        {active === 'Overview' ? <Overview period={period} setPeriod={setPeriod} challenges={filteredChallenges} action={action} /> : <DetailPage active={active} query={query} setQuery={setQuery} action={action} />}
+        {active === 'Overview' ? <Overview period={period} setPeriod={setPeriod} challenges={filteredChallenges} action={action} /> : active === 'Solution evaluation' ? <SolutionEvaluation action={action}/> : <DetailPage active={active} query={query} setQuery={setQuery} action={action} />}
       </div>
     </main>
     {notice && <div className="admin-toast"><Check size={17} />{notice}</div>}
@@ -121,6 +122,25 @@ function Overview({ period, setPeriod, challenges: visibleChallenges, action }) 
 function DetailPage({ active, query, setQuery, action }) {
   const page = allPages[active]
   return <><div className="admin-page-head"><div><span className="page-eyebrow">{page.eyebrow}</span><h1>{page.title}</h1><p>{page.note}</p></div><div className="head-actions"><button className="outline-action"><Download size={16}/> Export</button><button className="solid-action" onClick={()=>action(`New ${active.toLowerCase()} workflow opened.`)}>Add new <ChevronRight size={16}/></button></div></div><section className="detail-toolbar"><div><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={`Search ${active.toLowerCase()}…`}/></div><button><Filter size={16}/> Filters</button><button><Clock3 size={16}/> Updated just now</button></section><section className="dashboard-panel detail-placeholder"><span><Activity size={28}/></span><h2>{active} workspace ready</h2><p>This operational view is structured for live Supabase records. Connect the corresponding table to replace the current overview demo dataset.</p><div><button className="solid-action" onClick={()=>action('Data connection checklist opened.')}>Open data checklist</button><button className="outline-action" onClick={()=>setQuery('')}>Clear filters</button></div></section></>
+}
+
+const evaluationCriteria = [
+  ['Problem relevance',15],['Innovation',15],['Technical feasibility',15],['Social impact',20],
+  ['Cost effectiveness',10],['Scalability',10],['Sustainability',10],['Implementation feasibility',5],
+]
+
+const getSubmittedSolutions = () => Object.keys(localStorage).filter(key => key.startsWith('pragatix-org-workspace-')).flatMap(key => { try { const workspace=JSON.parse(localStorage.getItem(key)); return (workspace.solutions || []).map(solution=>({...solution,organizationKey:key})) } catch { return [] } })
+
+function SolutionEvaluation({action}) {
+  const [solutions] = useState(getSubmittedSolutions)
+  const [selectedId,setSelectedId] = useState(solutions[0]?.id || '')
+  const [scores,setScores] = useState(Object.fromEntries(evaluationCriteria.map(([name])=>[name,0])))
+  const [notes,setNotes] = useState('')
+  const [decision,setDecision] = useState('UNDER_REVIEW')
+  const selected=solutions.find(solution=>solution.id===selectedId)
+  const total=evaluationCriteria.reduce((sum,[name,weight])=>sum+(Number(scores[name]||0)/10)*weight,0)
+  const saveEvaluation=()=>{ if(!selected)return; const evaluations=JSON.parse(localStorage.getItem('pragatix-solution-evaluations')||'{}'); evaluations[selected.id]={scores,total:Number(total.toFixed(1)),notes,decision,evaluatedAt:new Date().toISOString()}; localStorage.setItem('pragatix-solution-evaluations',JSON.stringify(evaluations)); action(`Evaluation saved with a weighted score of ${total.toFixed(1)}%.`) }
+  return <><div className="admin-page-head"><div><span className="page-eyebrow">Transparent solution governance</span><h1>Solution evaluation</h1><p>Review every proposal against the same published weighted criteria.</p></div></div>{!solutions.length?<section className="dashboard-panel detail-placeholder"><span><FileCheck2 size={28}/></span><h2>No proposals awaiting evaluation</h2><p>Submitted organisation proposals will appear here automatically.</p></section>:<div className="evaluation-layout"><aside className="dashboard-panel evaluation-queue"><h2>Submitted proposals</h2>{solutions.map(solution=><button className={selectedId===solution.id?'active':''} key={solution.id} onClick={()=>setSelectedId(solution.id)}><strong>{solution.title}</strong><small>{solution.submittedBy} · {solution.id}</small></button>)}</aside><section className="dashboard-panel evaluation-form"><div className="evaluation-head"><div><span>Proposal under review</span><h2>{selected?.title}</h2><p>{selected?.problemUnderstanding}</p></div><div className="score-ring"><strong>{total.toFixed(1)}</strong><span>/ 100</span></div></div><div className="proposal-summary"><div><strong>Proposed solution</strong><p>{selected?.proposedSolution || selected?.proposal}</p></div><div><strong>Expected impact</strong><p>{selected?.expectedImpact || 'Not provided'}</p></div><div><strong>Technology</strong><p>{selected?.technology || 'Not provided'}</p></div></div><div className="criteria-table"><div className="criteria-header"><span>Evaluation parameter</span><span>Weight</span><span>Score (0–10)</span><span>Weighted</span></div>{evaluationCriteria.map(([name,weight])=><label key={name}><strong>{name}</strong><span>{weight}%</span><input type="number" min="0" max="10" step="0.5" value={scores[name]} onChange={event=>setScores({...scores,[name]:event.target.value})}/><b>{((Number(scores[name]||0)/10)*weight).toFixed(1)}</b></label>)}</div><label className="review-notes">Reviewer notes<textarea rows="4" value={notes} onChange={event=>setNotes(event.target.value)} placeholder="Evidence, strengths, risks and revision guidance"/></label><div className="evaluation-actions"><select value={decision} onChange={event=>setDecision(event.target.value)}><option value="UNDER_REVIEW">Under review</option><option value="APPROVED">Approve</option><option value="REVISION_REQUESTED">Request revision</option><option value="REJECTED">Reject</option></select><button className="solid-action" onClick={saveEvaluation}><Check/> Save evaluation</button></div></section></div>}</>
 }
 
 function Metric({icon:Icon,title,value,delta,positive,foot}){return <div className="metric-card"><div className="metric-head"><span><Icon size={19}/></span><button><MoreHorizontal size={17}/></button></div><small>{title}</small><div className="metric-value"><strong>{value}</strong><span className={positive?'up':'down'}>{positive?<ArrowUpRight size={13}/>:<ArrowDownRight size={13}/>} {delta}</span></div><p>{foot}</p></div>}
