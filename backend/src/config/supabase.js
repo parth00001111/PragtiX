@@ -1,16 +1,11 @@
 import './env.js'
 import { createClient } from '@supabase/supabase-js'
 
-<<<<<<< HEAD
-const configuredSupabaseUrl = process.env.SUPABASE_URL
+const configuredSupabaseUrl = process.env.SUPABASE_URL?.trim()
 const supabaseUrl = configuredSupabaseUrl
   ? new URL(configuredSupabaseUrl).origin
   : undefined
-const supabaseKey = process.env.SUPABASE_ANON_KEY
-=======
-const supabaseUrl = process.env.SUPABASE_URL?.trim();
-const supabaseKey = process.env.SUPABASE_ANON_KEY?.trim();
->>>>>>> origin/main
+const supabaseKey = process.env.SUPABASE_ANON_KEY?.trim()
 
 if (!supabaseUrl || !supabaseKey) {
   console.warn('Supabase is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.')
