@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { ALL_ROLES } from "../config/rbac.js";
 
 const prisma = new PrismaClient();
-const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET;
 
 // ---------------- Protect: verify access token ----------------
 export const protect = async (req, res, next) => {
