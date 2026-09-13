@@ -37,7 +37,7 @@ app.get("/uploads/problems/:filename", protect, authorize(...ALL_ROLES), require
   });
 });
 
-app.get("/", (req, res) => res.send("PragatiX backend running"));
+app.get("/", (req, res) => res.send("SamadhanSetu backend running"));
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.use((err, req, res, next) => {

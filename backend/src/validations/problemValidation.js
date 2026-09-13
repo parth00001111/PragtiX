@@ -22,10 +22,10 @@ export const createProblemSchema = z.object({
     .optional(),
   blockId: z.string().uuid().optional(),
   panchayatId: z.string().uuid().optional(),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
-  peopleAffected: z.number().int().positive().optional(),
-  isPublic: z.boolean().optional(),
+  latitude: z.coerce.number().min(-90).max(90).optional(),
+  longitude: z.coerce.number().min(-180).max(180).optional(),
+  peopleAffected: z.coerce.number().int().positive().optional(),
+  isPublic: z.preprocess(value => value === 'true' ? true : value === 'false' ? false : value, z.boolean()).optional(),
 });
 
 // ---------------- UPDATE PROBLEM ----------------
