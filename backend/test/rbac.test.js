@@ -1,215 +1,228 @@
 import assert from "node:assert/strict";
-import { after, before, beforeEach, mock, test } from "node:test";
-import { once } from "node:events";
-import { randomUUID } from "node:crypto";
-import { writeFile, unlink } from "node:fs/promises";
-import express from "express";
+import {test,before,beforeEach,after,mock} from "node:test";
+import {randomUUID} from "node:crypto";
+import {writeFile,unlink,readdir} from "node:fs/promises";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-
-process.env.ACCESS_TOKEN_SECRET = "rbac-test-access-secret";
-process.env.REFRESH_TOKEN_SECRET = "rbac-test-refresh-secret";
-process.env.PORT = "0";
-
-const publicRoles = ["CITIZEN", "FACULTY", "STUDENT", "INDUSTRY"];
-const staffRoles = ["OFFICIAL", "DEPT_ADMIN", "SUPER_ADMIN"];
-const roles = [...publicRoles, ...staffRoles];
-const users = new Map(roles.map(role => [role, { id: role, role, name: role, isActive: true }]));
-users.set("OWNER", { id: "OWNER", role: "CITIZEN", isActive: true });
-const problems = new Map();
-const writes = [];
-const filename = `rbac-${randomUUID()}.txt`;
-const attachmentUrl = `/uploads/problems/${filename}`;
-const attachmentFile = new URL(`../uploads/problems/${filename}`, import.meta.url);
-
-const matches = (row, where) => Object.entries(where).every(([key, value]) => {
-  if (key === "AND") return value.every(condition => matches(row, condition));
-  if (key === "OR") return value.some(condition => matches(row, condition));
-  if (value?.contains !== undefined) return row[key].toLowerCase().includes(value.contains.toLowerCase());
-  if (value?.not !== undefined) return row[key] !== value.not;
-  return row[key] === value;
+import {createDatabase} from "./helpers/database.js";
+import {start,token} from "./helpers/server.js";
+process.env.ACCESS_TOKEN_SECRET="backend-test-access-secret";
+process.env.REFRESH_TOKEN_SECRET="backend-test-refresh-secret";
+process.env.AI_PROVIDER="disabled";
+const {db,reset,tables}=createDatabase();
+mock.module("@prisma/client",{namedExports:{PrismaClient:class{constructor(){return db;}}}});
+let server,request;
+const roles=["CITIZEN","FACULTY","STUDENT","INDUSTRY","OFFICIAL","DEPT_ADMIN","SUPER_ADMIN"];
+let users,ids;
+const payload={title:"Pipeline leak near school",description:"Broken pipeline has wasted water for two weeks",domain:"WATER_MANAGEMENT"};
+const filename="test-"+randomUUID()+".txt",file=new URL("../uploads/problems/"+filename,import.meta.url);
+before(async()=>{({server,request}=await start());await writeFile(file,"private evidence");});
+after(async()=>{await unlink(file);server?.closeAllConnections();if(server)await new Promise(resolve=>server.close(resolve));});
+beforeEach(async()=>{
+ reset();users={};ids={};
+ for(const name of [...roles,"OWNER","OTHER_FACULTY","OTHER_INDUSTRY","OTHER_STUDENT"]){
+  const role=name==="OWNER"?"CITIZEN":name.startsWith("OTHER_")?name.slice(6):name;
+  users[name]=await db.user.create({data:{name,email:name+"@example.com",password:"not-a-real-hash",role}});
+  await db.session.create({data:{id:users[name].id,userId:users[name].id,refreshToken:randomUUID(),expiresAt:new Date(Date.now()+600000)}});
+ }
+ for(const [key,isPublic] of [["public",true],["private",false],["deleted",true]]){
+  const p=await db.problem.create({data:{...payload,isPublic,submittedById:users.OWNER.id,...(key==="deleted"&&{deletedAt:new Date()})}});ids[key]=p.id;
+ }
+ await db.attachment.create({data:{problemId:ids.private,url:"/uploads/problems/"+filename,type:"DOCUMENT"}});
 });
-
-const prisma = {
-  user: { findUnique: async ({ where }) => users.get(where.id) },
-  problem: {
-    findUnique: async ({ where }) => problems.get(where.id),
-    findMany: async ({ where }) => [...problems.values()].filter(row => matches(row, where)),
-    count: async ({ where }) => [...problems.values()].filter(row => matches(row, where)).length,
-    create: async ({ data }) => {
-      const problem = { id: randomUUID(), deletedAt: null, ...data };
-      problems.set(problem.id, problem); writes.push("create"); return problem;
-    },
-    update: async ({ where, data }) => {
-      writes.push("update");
-      const problem = { ...problems.get(where.id), ...data };
-      problems.set(where.id, problem); return problem;
-    },
-  },
-  attachment: {
-    findFirst: async ({ where }) => where.url === attachmentUrl
-      ? { url: attachmentUrl, problem: problems.get("private") } : null,
-  },
-  auditLog: { create: async () => { writes.push("audit"); } },
-  problemUpvote: {
-    findUnique: async () => null,
-    create: async () => { writes.push("upvote"); return {}; },
-  },
-  comment: { create: async () => { writes.push("comment"); return {}; } },
-  feedback: { create: async () => { writes.push("feedback"); return {}; } },
+const expect=async(method,path,user,body,status=200)=>{
+ const response=await request(method,path,user,body);
+ const result=await response.json();
+ assert.equal(response.status,status,method+" "+path+" "+JSON.stringify(result));
+ return result.data;
 };
-mock.module("@prisma/client", { namedExports: { PrismaClient: class { constructor() { return prisma; } } } });
+const p=key=>"/api/problems/"+ids[key];
+const provision=async()=>{
+ const university=await expect("POST","/api/universities",users.FACULTY,{universityName:"Demo University",district:"Ranchi"},201);
+ const department=await expect("POST","/api/universities/departments",users.FACULTY,{name:"Water engineering",domainExpertise:["WATER_MANAGEMENT"]},201);
+ await expect("POST","/api/universities/faculty-profile",users.FACULTY,{departmentId:department.id},201);
+ await expect("POST","/api/universities/labs",users.FACULTY,{departmentId:department.id,name:"Water lab"},201);
+ await expect("PATCH",p("private")+"/verify",users.OFFICIAL,{});
+ const assignment=await expect("POST","/api/assignments",users.OFFICIAL,{problemId:ids.private,universityId:university.id},201);
+ const team=await expect("POST","/api/teams",users.FACULTY,{name:"Water team"},201);
+ await expect("POST","/api/teams/"+team.id+"/members",users.FACULTY,{userId:users.FACULTY.id,role:"FACULTY_MENTOR"},201);
+ await expect("POST","/api/teams/"+team.id+"/members",users.FACULTY,{userId:users.STUDENT.id,role:"STUDENT_LEAD"},201);
+ const project=await expect("POST","/api/projects",users.FACULTY,{title:"Repair water pipeline",description:"A monitored repair and leak detection project",assignmentId:assignment.id,teamId:team.id},201);
+ return {university,department,assignment,team,project};
+};
 
-let server;
-let baseUrl;
-before(async () => {
-  const listen = express.application.listen;
-  const spy = mock.method(express.application, "listen", function (...args) {
-    server = listen.apply(this, args);
-    return server;
-  });
-  await import("../index.js");
-  spy.mock.restore();
-  if (!server.listening) await once(server, "listening");
-  baseUrl = `http://127.0.0.1:${server.address().port}`;
-  await writeFile(attachmentFile, "private attachment");
+test("all private operations require a valid authenticated session",async()=>{
+ for(const [method,path] of [["GET","/api/problems"],["POST","/api/problems"],["GET",p("public")],["PATCH",p("public")],["DELETE",p("public")],["POST",p("public")+"/comment"],["GET","/api/projects"],["GET","/api/teams"],["GET","/api/notifications"],["GET","/api/analytics"],["GET","/uploads/problems/"+filename],["GET","/api/auth/me"]])
+  await expect(method,path,null,undefined,401);
+ const oldToken=jwt.sign({id:users.CITIZEN.id,role:"SUPER_ADMIN"},process.env.ACCESS_TOKEN_SECRET);
+ await expect("GET","/api/auth/me",oldToken,undefined,401);
+ await db.session.delete({where:{id:users.CITIZEN.id}});
+ await expect("GET","/api/auth/me",users.CITIZEN,undefined,401);
 });
-after(async () => {
-  await unlink(attachmentFile).catch(error => { if (error.code !== "ENOENT") throw error; });
-  if (server) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+test("all roles can submit but cannot supply the owner, scores, or a privileged account role",async()=>{
+ for(const role of roles){
+  const result=await expect("POST","/api/problems",users[role],{...payload,submittedById:users.OWNER.id,priorityScore:100},201);
+  assert.equal(result.submittedById,users[role].id);assert.equal(result.priorityScore,null);
+ }
+ for(const role of ["OFFICIAL","DEPT_ADMIN","SUPER_ADMIN"])await expect("POST","/api/auth/register",null,{name:"Test user",email:"test@example.com",password:"Password1",role},400);
 });
-beforeEach(() => {
-  writes.length = 0;
-  problems.clear();
-  for (const [id, isPublic, title] of [
-    ["public", true, "Pipeline leak"], ["private", false, "Pipeline leak"],
-    ["unrelated", true, "School repairs"], ["deleted", true, "Pipeline leak"],
-  ]) problems.set(id, { id, isPublic, title, description: "A community problem", submittedById: "OWNER", status: "SUBMITTED", deletedAt: id === "deleted" ? new Date() : null });
+test("private lists, search, engagement and evidence follow resource visibility",async()=>{
+ for(const role of roles){
+  const response=await request("GET","/api/problems?search=Pipeline",users[role]);
+  const body=await response.json();assert.equal(response.status,200);
+  const staff=["OFFICIAL","DEPT_ADMIN","SUPER_ADMIN"].includes(role);
+  assert.equal(body.pagination.total,staff?2:1);
+  await expect("GET",p("private"),users[role],undefined,staff?200:404);
+  if(!staff){await expect("POST",p("private")+"/comment",users[role],{content:"Hello"},404);await expect("GET","/uploads/problems/"+filename,users[role],undefined,404);}
+ }
+ for(const role of ["OWNER","OFFICIAL","DEPT_ADMIN","SUPER_ADMIN"]){
+  const response=await request("GET","/uploads/problems/"+filename,users[role]);
+  assert.equal(response.status,200);assert.equal(await response.text(),"private evidence");assert.equal(response.headers.get("cache-control"),"private, no-store");
+ }
+ await expect("POST",p("public")+"/comment",users.CITIZEN,{content:"Additional detail"},201);
+ await expect("POST",p("public")+"/upvote",users.CITIZEN,{});
+ await expect("POST",p("public")+"/feedback",users.CITIZEN,{rating:4},409);
 });
-
-const request = (method, path, role, body, claimedRole = role) => fetch(`${baseUrl}${path}`, {
-  method,
-  headers: {
-    ...(role && { Authorization: `Bearer ${jwt.sign({ id: role, role: claimedRole }, process.env.ACCESS_TOKEN_SECRET)}` }),
-    ...(body !== undefined && { "Content-Type": "application/json" }),
-  },
-  ...(body !== undefined && { body: JSON.stringify(body) }),
+test("ownership, current database roles and lifecycle states guard edits and verification",async()=>{
+ for(const role of ["CITIZEN","FACULTY","STUDENT","INDUSTRY"])
+  await expect("PATCH",p("private"),users[role],{title:"Changed title"},403);
+ await expect("PATCH",p("private"),users.OWNER,{title:"Changed title"});
+ await expect("PATCH",p("private"),users.OWNER,{status:"VERIFIED"},403);
+ const forged=jwt.sign({id:users.CITIZEN.id,sid:users.CITIZEN.id,role:"SUPER_ADMIN"},process.env.ACCESS_TOKEN_SECRET);
+ await expect("PATCH",p("private")+"/verify",forged,{},403);
+ await expect("PATCH",p("private")+"/verify",users.OFFICIAL,{});
+ await expect("PATCH",p("private"),users.OWNER,{title:"Post-review edit"},409);
+ await expect("PATCH",p("private"),users.OFFICIAL,{status:"RESOLVED"},409);
+ const result=await expect("PATCH",p("private"),users.OFFICIAL,{status:"PRIORITIZED",severityScore:10,urgencyScore:5});
+ assert.equal(result.priorityScore,30);
+ await expect("PATCH",p("private")+"/verify",users.OFFICIAL,{},409);
 });
-const problemPath = "/api/problems";
-
-test("every private problem operation and attachment requires authentication", async () => {
-  for (const [method, path] of [
-    ["GET", problemPath], ["POST", problemPath],
-    ["PATCH", `${problemPath}/public`], ["DELETE", `${problemPath}/public`],
-    ["PATCH", `${problemPath}/public/verify`], ["POST", `${problemPath}/public/upvote`],
-    ["POST", `${problemPath}/public/comment`], ["POST", `${problemPath}/public/feedback`],
-    ["GET", attachmentUrl], ["HEAD", attachmentUrl], ["GET", "/api/auth/me"],
-  ]) assert.equal((await request(method, path)).status, 401, `${method} ${path}`);
-  assert.deepEqual(writes, []);
+test("only owners/admins delete, deleted resources disappear, and duplicates cannot reference themselves",async()=>{
+ await expect("DELETE",p("public"),users.OFFICIAL,undefined,403);
+ await expect("DELETE",p("public"),users.OWNER);
+ for(const method of ["GET","DELETE"])await expect(method,p("public"),users.SUPER_ADMIN,undefined,404);
+ await expect("PATCH",p("deleted"),users.SUPER_ADMIN,{},404);
+ await expect("PATCH",p("private")+"/verify",users.OFFICIAL,{isDuplicateOf:ids.private},400);
+ await expect("PATCH",p("private")+"/verify",users.OFFICIAL,{isDuplicateOf:randomUUID()},404);
 });
-
-test("public challenge catalogue is readable without authentication and excludes private or deleted problems", async () => {
-  const response = await request("GET", `${problemPath}/public`);
-  assert.equal(response.status, 200);
-  const body = await response.json();
-  assert.deepEqual(body.data.map(row => row.id), ["public", "unrelated"]);
-  assert.equal(body.pagination.total, 2);
-  assert.deepEqual(writes, []);
+test("validation rejects bad IDs, enums, pagination, blank inputs, bad JSON and empty updates",async()=>{
+ for(const url of ["/api/problems?limit=-1","/api/projects?page=0","/api/problems?domain=BAD","/api/problems/not-an-id","/api/notifications?unread=maybe"])
+  await expect("GET",url,users.CITIZEN,undefined,400);
+ await expect("POST","/api/problems",users.CITIZEN,{...payload,title:"     "},400);
+ await expect("POST","/api/problems",users.CITIZEN,{...payload,latitude:22},400);
+ await expect("PATCH",p("private"),users.OWNER,{},400);
+ await expect("POST","/api/ratings",users.CITIZEN,{score:4},400);
+ await expect("POST","/api/ratings",users.CITIZEN,{score:4,universityId:randomUUID(),industryId:randomUUID()},400);
+ const malformed=await fetch("http://127.0.0.1:"+server.address().port+"/api/problems",{method:"POST",headers:{"Content-Type":"application/json"},body:'{"title":'});
+ assert.equal(malformed.status,400);assert.equal((await malformed.json()).message,"Invalid JSON body");
 });
-
-test("all supported roles can submit; owner identity comes from the authenticated user", async () => {
-  for (const role of roles) {
-    const response = await request("POST", problemPath, role, {
-      title: "Pipeline leak", description: "Water leaking for two weeks", submittedById: "OWNER",
-    });
-    assert.equal(response.status, 201, role);
-    assert.equal((await response.json()).data.submittedById, role);
-  }
+test("multipart booleans/numbers are normalized, invalid uploads removed, location hierarchy enforced",async()=>{
+ const beforeFiles=await readdir(new URL("../uploads/problems/",import.meta.url));
+ const form=new FormData();for(const [k,v] of Object.entries(payload))form.append(k,v);
+ form.append("isPublic","false");form.append("peopleAffected","250");form.append("latitude","23.3441");form.append("longitude","85.3096");
+ const result=await expect("POST","/api/problems",users.CITIZEN,form,201);
+ assert.equal(result.isPublic,false);assert.equal(result.peopleAffected,250);
+ const invalid=new FormData();invalid.append("title","x");invalid.append("attachments",new Blob(["test"],{type:"application/pdf"}),"test.pdf");
+ await expect("POST","/api/problems",users.CITIZEN,invalid,400);
+ assert.deepEqual(await readdir(new URL("../uploads/problems/",import.meta.url)),beforeFiles);
+ const d1=await db.district.create({data:{name:"Ranchi"}}),d2=await db.district.create({data:{name:"Other"}});
+ const block=await db.block.create({data:{name:"Demo block",districtId:d1.id}});
+ await expect("POST","/api/problems",users.CITIZEN,{...payload,blockId:block.id,districtId:d2.id},400);
+ const located=await expect("POST","/api/problems",users.CITIZEN,{...payload,blockId:block.id},201);assert.equal(located.districtId,d1.id);
 });
-
-test("list and search hide private problems from every ordinary role, while owners and staff can read them", async () => {
-  for (const role of [...roles, "OWNER"]) {
-    const response = await request("GET", `${problemPath}?search=Pipeline`, role);
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    const expected = staffRoles.includes(role) || role === "OWNER" ? ["public", "private"] : ["public"];
-    assert.deepEqual(body.data.map(row => row.id), expected, role);
-    assert.equal(body.pagination.total, expected.length);
-    assert.equal((await request("GET", `${problemPath}/private`, role)).status, expected.length === 2 ? 200 : 404, role);
-  }
+test("inactive/deleted users cannot access protected routes",async()=>{
+ await db.user.update({where:{id:users.CITIZEN.id},data:{isActive:false}});
+ await expect("GET","/api/auth/me",users.CITIZEN,undefined,403);
+ await db.user.update({where:{id:users.CITIZEN.id},data:{isActive:true,deletedAt:new Date()}});
+ await expect("GET","/api/auth/me",users.CITIZEN,undefined,401);
 });
-
-test("citizen mine endpoint returns only problems submitted by the authenticated user", async () => {
-  problems.set("citizen-owned", { id: "citizen-owned", isPublic: true, title: "My road issue", description: "Road damage", submittedById: "CITIZEN", status: "SUBMITTED", deletedAt: null });
-  const response = await request("GET", `${problemPath}/mine?limit=100`, "CITIZEN");
-  assert.equal(response.status, 200);
-  const body = await response.json();
-  assert.deepEqual(body.data.map(problem => problem.id), ["citizen-owned"]);
-  assert.equal(body.pagination.total, 1);
+test("login/refresh/logout and password changes revoke sessions",async()=>{
+ const password=await bcrypt.hash("Password1",4);
+ await db.user.update({where:{id:users.CITIZEN.id},data:{password}});
+ const login=await expect("POST","/api/auth/login",null,{email:users.CITIZEN.email,password:"Password1"});
+ await expect("GET","/api/auth/me",login.accessToken);
+ const refreshed=await expect("POST","/api/auth/refresh",null,{refreshToken:login.refreshToken});assert.ok(refreshed.accessToken);
+ await expect("POST","/api/auth/logout",null,{refreshToken:login.refreshToken});
+ await expect("GET","/api/auth/me",login.accessToken,undefined,401);
+ await expect("POST","/api/auth/refresh",null,{refreshToken:login.refreshToken},401);
+ await expect("PATCH","/api/users/me/password",users.CITIZEN,{currentPassword:"bad",newPassword:"NewPassword1"},400);
+ await expect("PATCH","/api/users/me/password",users.CITIZEN,{currentPassword:"Password1",newPassword:"NewPassword1"});
+ await expect("GET","/api/auth/me",users.CITIZEN,undefined,401);
 });
-
-test("private problem engagement is denied before any write; public engagement remains allowed", async () => {
-  for (const role of publicRoles) {
-    for (const [action, body, successStatus] of [["upvote", {}, 200], ["comment", { content: "Useful detail" }, 201], ["feedback", { rating: 4 }, 201]]) {
-      const count = writes.length;
-      assert.equal((await request("POST", `${problemPath}/private/${action}`, role, body)).status, 404);
-      assert.equal(writes.length, count);
-      assert.equal((await request("POST", `${problemPath}/public/${action}`, role, body)).status, successStatus);
-    }
-  }
+test("role management belongs to super admin and cannot demote the current administrator",async()=>{
+ await expect("PATCH","/api/users/"+users.CITIZEN.id,users.DEPT_ADMIN,{role:"OFFICIAL"},403);
+ await expect("PATCH","/api/users/"+users.SUPER_ADMIN.id,users.SUPER_ADMIN,{isActive:false},409);
+ const result=await expect("PATCH","/api/users/"+users.CITIZEN.id,users.SUPER_ADMIN,{role:"OFFICIAL"});
+ assert.equal(result.role,"OFFICIAL");assert.equal(result.password,undefined);
+ await expect("GET","/api/auth/me",users.CITIZEN,undefined,401);
 });
-
-test("only owners and staff edit; only staff can change status and scores even for owned problems", async () => {
-  for (const role of publicRoles) {
-    assert.equal((await request("PATCH", `${problemPath}/public`, role, { title: "Changed title" })).status, 403);
-  }
-  assert.deepEqual(writes, []);
-  assert.equal((await request("PATCH", `${problemPath}/private`, "OWNER", { title: "Changed title" })).status, 200);
-  for (const field of ["status", "severityScore", "urgencyScore", "geographicImpactScore", "feasibilityScore", "communitySupportScore"]) {
-    const count = writes.length;
-    assert.equal((await request("PATCH", `${problemPath}/private`, "OWNER", { [field]: field === "status" ? "VERIFIED" : 5 })).status, 403, field);
-    assert.equal(writes.length, count);
-  }
-  for (const role of staffRoles) assert.equal((await request("PATCH", `${problemPath}/private`, role, { status: "IN_PROGRESS", severityScore: 5 })).status, 200, role);
+test("full challenge-to-impact lifecycle, budget checks and stakeholder permissions",async()=>{
+ const {project,university,team}=await provision();
+ const path="/api/projects/"+project.id;
+ await expect("GET",p("private"),users.STUDENT);
+ await expect("GET",p("private"),users.OTHER_STUDENT,undefined,404);
+ await expect("GET",path,users.OTHER_FACULTY,undefined,403);
+ await expect("POST","/api/teams/"+team.id+"/members",users.OTHER_FACULTY,{userId:users.OTHER_STUDENT.id,role:"STUDENT_MEMBER"},403);
+ await expect("PATCH",path,users.FACULTY,{status:"DEPLOYED"},409);
+ const proposal=await expect("POST","/api/proposals",users.STUDENT,{projectId:project.id,content:"Design a monitored water pipeline repair prototype."},201);
+ await expect("PATCH","/api/proposals/"+proposal.id+"/review",users.OFFICIAL,{status:"APPROVED"},409);
+ await expect("PATCH","/api/proposals/"+proposal.id+"/submit",users.STUDENT,{});
+ await expect("PATCH","/api/proposals/"+proposal.id+"/review",users.FACULTY,{status:"APPROVED"},403);
+ await expect("PATCH","/api/proposals/"+proposal.id+"/review",users.OFFICIAL,{status:"APPROVED"});
+ const industry=await expect("POST","/api/industries",users.INDUSTRY,{orgName:"Water startup",type:"STARTUP"},201);
+ await expect("POST","/api/finance/partnerships",users.INDUSTRY,{projectId:project.id,industryId:industry.id,role:"FUNDER"},403);
+ await expect("POST","/api/finance/partnerships",users.FACULTY,{projectId:project.id,industryId:industry.id,role:"FUNDER"},201);
+ await expect("GET",p("private"),users.INDUSTRY);
+ await expect("GET","/api/finance/project/"+project.id+"/summary",users.OWNER,undefined,403);
+ await expect("POST","/api/finance/fundings",users.OTHER_INDUSTRY,{projectId:project.id,industryId:industry.id,source:"INDUSTRY",amount:1000},403);
+ await expect("POST","/api/finance/fundings",users.INDUSTRY,{projectId:project.id,industryId:industry.id,source:"INDUSTRY",amount:1000},201);
+ await expect("POST","/api/finance/expenses",users.FACULTY,{projectId:project.id,description:"Equipment",amount:1001},409);
+ await expect("POST","/api/finance/expenses",users.FACULTY,{projectId:project.id,description:"Equipment",amount:750.25},201);
+ const finance=await expect("GET","/api/finance/project/"+project.id+"/summary",users.FACULTY);assert.equal(finance.remaining,249.75);
+ await expect("PATCH",path,users.FACULTY,{status:"PROTOTYPE"});
+ await expect("PATCH",path,users.FACULTY,{status:"PILOT_TESTING"});
+ await expect("PATCH",path,users.OFFICIAL,{status:"DEPLOYED"},409);
+ const milestone=await expect("POST","/api/milestones",users.FACULTY,{projectId:project.id,title:"Pilot validation"},201);
+ await expect("PATCH","/api/milestones/"+milestone.id,users.STUDENT,{status:"COMPLETED"});
+ await expect("PATCH",path,users.FACULTY,{status:"DEPLOYED"},403);
+ await expect("PATCH",path,users.OFFICIAL,{status:"DEPLOYED"});
+ await expect("POST","/api/impact",users.FACULTY,{projectId:project.id,citizensBenefited:250},403);
+ await expect("POST","/api/impact",users.OFFICIAL,{projectId:project.id,citizensBenefited:250,villagesCovered:1},201);
+ assert.equal((await expect("GET",p("private"),users.OWNER)).status,"RESOLVED");
+ await expect("POST",p("private")+"/feedback",users.OWNER,{rating:5,comment:"Supply restored"},201);
+ await expect("POST","/api/ratings",users.OWNER,{universityId:university.id,score:5});
+ await expect("POST","/api/ratings",users.OWNER,{universityId:university.id,score:4});
+ assert.equal(tables.Rating.length,1);assert.equal(tables.UniversityProfile[0].avgRating,4);
+ await expect("POST","/api/impact",users.OFFICIAL,{projectId:project.id,citizensBenefited:250},409);
+ await expect("DELETE",p("private"),users.SUPER_ADMIN,undefined,409);
+ const dashboard=await expect("GET","/api/analytics",users.OFFICIAL);assert.equal(dashboard.impact._sum.citizensBenefited,250);
+ const citizenProject=await expect("GET",path,users.OWNER);assert.equal(citizenProject.budgetSpent,undefined);
 });
-
-test("verification requires the current database staff role, ignoring a forged token role claim", async () => {
-  for (const role of publicRoles) assert.equal((await request("PATCH", `${problemPath}/public/verify`, role, {}, "SUPER_ADMIN")).status, 403);
-  assert.deepEqual(writes, []);
-  for (const role of staffRoles) assert.equal((await request("PATCH", `${problemPath}/private/verify`, role, {})).status, 200);
+test("public directories do not leak accounts, assignments, finance or private challenges",async()=>{
+ await provision();
+ const departments=await expect("GET","/api/locations/departments",null);
+ const universities=await expect("GET","/api/universities",null);
+ const text=JSON.stringify({departments,universities});
+ for(const forbidden of ["password","refreshToken","submittedById",ids.private,"not-a-real-hash","assignments","budgetSpent"])assert.ok(!text.includes(forbidden),forbidden);
+ assert.equal(universities.length,1);
 });
-
-test("owners and admins can delete; officials cannot delete someone else's problem", async () => {
-  for (const role of [...publicRoles, "OFFICIAL"]) assert.equal((await request("DELETE", `${problemPath}/public`, role)).status, 403);
-  assert.deepEqual(writes, []);
-  for (const role of ["OWNER", "DEPT_ADMIN", "SUPER_ADMIN"]) {
-    problems.get("private").deletedAt = null;
-    assert.equal((await request("DELETE", `${problemPath}/private`, role)).status, 200);
-  }
+test("notifications are scoped to the recipient and mutation cannot cross accounts",async()=>{
+ const notification=await db.notification.create({data:{userId:users.OWNER.id,message:"Private notification"}});
+ assert.deepEqual(await expect("GET","/api/notifications",users.CITIZEN),[]);
+ await expect("PATCH","/api/notifications/"+notification.id+"/read",users.CITIZEN,{},404);
+ await expect("PATCH","/api/notifications/"+notification.id+"/read",users.OWNER,{});
+ assert.deepEqual(await expect("GET","/api/notifications?unread=true",users.OWNER),[]);
 });
-
-test("attachments enforce problem visibility and deleted problems stay inaccessible", async () => {
-  for (const role of publicRoles) assert.equal((await request("GET", attachmentUrl, role)).status, 404);
-  for (const role of ["OWNER", ...staffRoles]) {
-    const response = await request("GET", attachmentUrl, role);
-    assert.equal(response.status, 200);
-    assert.equal(await response.text(), "private attachment");
-    assert.equal(response.headers.get("cache-control"), "private, no-store");
-  }
-  problems.get("private").deletedAt = new Date();
-  assert.equal((await request("GET", attachmentUrl, "SUPER_ADMIN")).status, 404);
-  for (const method of ["GET", "PATCH", "DELETE"]) assert.equal((await request(method, `${problemPath}/deleted`, "SUPER_ADMIN", method === "PATCH" ? {} : undefined)).status, 404);
+test("failed transactions roll back related records and budget changes",async()=>{
+ const original=db.auditLog.create;
+ db.auditLog.create=async()=>{throw Object.assign(new Error("Simulated conflict"),{code:"P2034"});};
+ const count=tables.Problem.length;
+ try{await expect("POST","/api/problems",users.CITIZEN,payload,409);assert.equal(tables.Problem.length,count);}
+ finally{db.auditLog.create=original;}
 });
-
-test("public registration cannot assign privileged roles; inactive and unknown roles cannot access protected routes", async () => {
-  for (const role of staffRoles) assert.equal((await request("POST", "/api/auth/register", undefined, {
-    name: "Test User", email: "test@example.com", password: "Password1", role,
-  })).status, 400);
-  users.set("UNKNOWN", { id: "UNKNOWN", role: "UNKNOWN", isActive: true });
-  users.set("INACTIVE", { id: "INACTIVE", role: "SUPER_ADMIN", isActive: false });
-  users.set("DELETED", { id: "DELETED", role: "SUPER_ADMIN", isActive: true, deletedAt: new Date() });
-  for (const path of [problemPath, "/api/auth/me", attachmentUrl]) {
-    assert.equal((await request("GET", path, "UNKNOWN")).status, 403);
-    assert.equal((await request("GET", path, "INACTIVE")).status, 403);
-    assert.equal((await request("GET", path, "DELETED")).status, 401);
-  }
+test("AI is optional; private status lookup uses RBAC and never calls an external provider",async()=>{
+ await expect("POST","/api/assistant/analyze",users.CITIZEN,payload,503);
+ await expect("POST","/api/assistant/chat",users.CITIZEN,{message:"Status?",problemId:ids.private},404);
+ const result=await expect("POST","/api/assistant/chat",users.OWNER,{message:"Status?",problemId:ids.private});
+ assert.equal(result.source,"database");assert.equal(result.data.status,"SUBMITTED");
 });

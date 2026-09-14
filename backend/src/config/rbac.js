@@ -11,7 +11,11 @@ export const MODERATION_FIELDS = [
 export const problemVisibilityWhere = (user) => ({
   deletedAt: null,
   ...(!STAFF_ROLES.includes(user.role) && {
-    OR: [{ isPublic: true }, { submittedById: user.id }],
+    OR: [{ isPublic: true }, { submittedById: user.id },
+      ...(user.role === 'FACULTY' ? [{assignments:{some:{university:{userId:user.id}}}}] : []),
+      ...(['FACULTY','STUDENT'].includes(user.role) ? [{assignments:{some:{project:{team:{members:{some:{userId:user.id,role:user.role==='FACULTY'?'FACULTY_MENTOR':{in:['STUDENT_LEAD','STUDENT_MEMBER']}}}}}}}}] : []),
+      ...(user.role === 'INDUSTRY' ? [{assignments:{some:{project:{partnerships:{some:{industry:{userId:user.id}}}}}}}] : [])
+    ],
   }),
 });
 

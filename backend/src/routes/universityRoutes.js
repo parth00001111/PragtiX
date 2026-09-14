@@ -1,0 +1,20 @@
+import express from "express";
+import * as c from "../controller/universityController.js";
+import * as v from "../validations/universityValidation.js";
+import { protect, authorize } from "../middleware/authMiddleware.js";
+import { validate, validateIds, query, pageSchema, uuid, domain } from "../validations/common.js";
+import { z } from "zod";
+import { STAFF_ROLES, ADMIN_ROLES } from "../config/rbac.js";
+
+const router=express.Router();
+router.get("/",query(v.universityQuerySchema),c.getAllUniversities);
+router.get("/me",protect,authorize("FACULTY",...ADMIN_ROLES),c.getMyUniversity);
+router.get("/:id",validateIds("id"),c.getUniversityById);
+router.get("/:universityId/departments",validateIds("universityId"),c.getDepartmentsByUniversity);
+router.use(protect,authorize("FACULTY",...ADMIN_ROLES));
+router.post("/",validate(v.createUniversityProfileSchema),c.createUniversityProfile);
+router.patch("/:id",validateIds("id"),validate(v.updateUniversitySchema),c.updateUniversity);
+router.post("/departments",validate(v.createDepartmentSchema),c.createDepartment);
+router.post("/faculty-profile",validate(v.createFacultyProfileSchema),c.createFacultyProfile);
+router.post("/labs",validate(v.createLabSchema),c.createLab);
+export default router;

@@ -1,5 +1,5 @@
 import multer from "multer";
-import path from "path";
+import { randomUUID } from "node:crypto";
 import fs from "fs";
 import { fileURLToPath } from "node:url";
 
@@ -42,7 +42,7 @@ const fileFilter = (req, file, cb) => {
 export const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
+  limits: { fileSize: 20 * 1024 * 1024, files: 5, fields: 20, fieldSize: 25000, parts: 25 }, // 20MB max
 });
 
 // helper to map mimetype -> AttachmentType enum
