@@ -138,6 +138,15 @@ test("list and search hide private problems from every ordinary role, while owne
   }
 });
 
+test("citizen mine endpoint returns only problems submitted by the authenticated user", async () => {
+  problems.set("citizen-owned", { id: "citizen-owned", isPublic: true, title: "My road issue", description: "Road damage", submittedById: "CITIZEN", status: "SUBMITTED", deletedAt: null });
+  const response = await request("GET", `${problemPath}/mine?limit=100`, "CITIZEN");
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.data.map(problem => problem.id), ["citizen-owned"]);
+  assert.equal(body.pagination.total, 1);
+});
+
 test("private problem engagement is denied before any write; public engagement remains allowed", async () => {
   for (const role of publicRoles) {
     for (const [action, body, successStatus] of [["upvote", {}, 200], ["comment", { content: "Useful detail" }, 201], ["feedback", { rating: 4 }, 201]]) {

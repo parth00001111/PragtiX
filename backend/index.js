@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import "./src/config/env.js";
 import authRoutes from "./src/routes/authRoutes.js";
 import problemRoutes from "./src/routes/problemRoutes.js";
+import chatRoutes from "./src/routes/chatRoutes.js";
 import { fileURLToPath } from "node:url";
 import { protect, authorize } from "./src/middleware/authMiddleware.js";
 import { ALL_ROLES } from "./src/config/rbac.js";
@@ -29,6 +30,7 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/problems", problemRoutes);
+app.use("/api/chat", chatRoutes);
 app.get("/uploads/problems/:filename", protect, authorize(...ALL_ROLES), requireAttachmentAccess, (req, res) => {
   res.sendFile(req.params.filename, {
     root: fileURLToPath(new URL("./uploads/problems/", import.meta.url)),

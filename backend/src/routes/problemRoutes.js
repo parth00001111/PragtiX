@@ -13,6 +13,7 @@ import {
   getSolutionIdeas,
   addSolutionIdea,
   getMySolutionIdeas,
+  getMyProblems,
 } from "../controller/problemController.js";
 import {
   createProblemSchema,
@@ -32,6 +33,7 @@ router.get("/public", getPublicProblems);
 router.get("/public/:id/ideas", getSolutionIdeas);
 router.use(protect, authorize(...ALL_ROLES));
 router.get("/ideas/mine", getMySolutionIdeas);
+router.get("/mine", getMyProblems);
 router.post("/:id/ideas", requireProblemAccess(), addSolutionIdea);
 
 // Every supported role can submit; reads and changes also check problem access.
