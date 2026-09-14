@@ -145,6 +145,37 @@ export const createProblem = async (req, res) => {
   }
 };
 
+// ---------------- GET CURRENT USER'S PROBLEMS ----------------
+export const getMyProblems = async (req, res) => {
+  try {
+    const { page = 1, limit = 100 } = req.query;
+    const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 100);
+    const safePage = Math.max(Number(page) || 1, 1);
+    const where = { submittedById: req.user.id, deletedAt: null };
+    const [problems, total] = await Promise.all([
+      prisma.problem.findMany({
+        where,
+        include: {
+          attachments: true,
+          _count: { select: { upvotes: true, comments: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (safePage - 1) * safeLimit,
+        take: safeLimit,
+      }),
+      prisma.problem.count({ where }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: problems,
+      pagination: { total, page: safePage, limit: safeLimit, totalPages: Math.ceil(total / safeLimit) },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Failed to fetch your problems", error: error.message });
+  }
+};
+
 // ---------------- GET ALL PROBLEMS (with filters) ----------------
 export const getAllProblems = async (req, res) => {
   try {
