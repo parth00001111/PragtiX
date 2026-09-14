@@ -54,7 +54,7 @@ const hindi = {
   'Organisation team member / researcher': 'संगठन टीम सदस्य / शोधकर्ता', 'Please wait…': 'कृपया प्रतीक्षा करें…',
   'Aadhaar is never required. Government-approved identity verification may be offered only where appropriate. By continuing, you agree to the portal terms and privacy policy.': 'आधार कभी अनिवार्य नहीं है। जहाँ उचित हो, केवल सरकार-अनुमोदित पहचान सत्यापन दिया जा सकता है। आगे बढ़कर आप पोर्टल की शर्तों और गोपनीयता नीति से सहमत होते हैं।',
   'Overview': 'अवलोकन', 'My Problems': 'मेरी समस्याएँ', 'Submit Problem': 'समस्या दर्ज करें', 'Help & support': 'सहायता',
-  'Public website': 'सार्वजनिक वेबसाइट', 'Dashboard': 'डैशबोर्ड', 'Citizen workspace': 'नागरिक कार्यस्थल', 'Guest citizen': 'अतिथि नागरिक',
+  'Public website': 'सार्वजनिक वेबसाइट', 'Citizen workspace': 'नागरिक कार्यस्थल', 'Guest citizen': 'अतिथि नागरिक',
   'Local submissions only': 'केवल स्थानीय प्रस्तुतियाँ', 'Sign in to sync and track problems securely': 'समस्याओं को सुरक्षित रूप से सहेजने और ट्रैक करने के लिए साइन इन करें',
   'Guest submissions stay only on this device.': 'अतिथि प्रस्तुतियाँ केवल इस डिवाइस पर रहती हैं।', 'Your submissions': 'आपकी प्रस्तुतियाँ',
   'Track every community problem through verification and delivery.': 'हर सामुदायिक समस्या को सत्यापन से समाधान तक ट्रैक करें।',
@@ -89,8 +89,44 @@ const hindi = {
   'Project delivery health': 'परियोजना प्रगति स्थिति', 'District participation': 'जिला सहभागिता', 'Innovation outcomes': 'नवाचार परिणाम',
   'Recent activity': 'हाल की गतिविधि', 'Solutions deployed': 'लागू समाधान', 'Patents filed': 'दायर पेटेंट', 'Startups created': 'निर्मित स्टार्टअप',
   'Citizens impacted': 'प्रभावित नागरिक', 'Search challenges, projects or institutions…': 'चुनौतियाँ, परियोजनाएँ या संस्थान खोजें…',
+  'Quick Links': 'त्वरित लिंक', 'Portal Access': 'पोर्टल पहुँच', 'Government Links': 'सरकारी लिंक', 'Get in touch': 'संपर्क करें',
+  'About the initiative': 'पहल के बारे में', 'Accessibility statement': 'सुगम्यता विवरण', 'Frequently asked questions': 'अक्सर पूछे जाने वाले प्रश्न',
+  'Privacy policy': 'गोपनीयता नीति', 'Terms and conditions': 'नियम और शर्तें', 'Jharkhand Government': 'झारखंड सरकार',
+  'National Portal of India': 'भारत का राष्ट्रीय पोर्टल', 'Digital India': 'डिजिटल इंडिया', 'Open Government Data': 'खुला सरकारी डेटा',
+  'An initiative connecting community challenges with research, innovation, funding and implementation capability across Jharkhand.': 'झारखंड में सामुदायिक चुनौतियों को शोध, नवाचार, वित्तपोषण और क्रियान्वयन क्षमता से जोड़ने वाली पहल।',
+  'Department of Higher and Technical Education, Government of Jharkhand': 'उच्च एवं तकनीकी शिक्षा विभाग, झारखंड सरकार',
+  'Last updated': 'अंतिम अद्यतन', 'All rights reserved.': 'सर्वाधिकार सुरक्षित।',
+  'Jharkhand at a Glance': 'झारखंड एक नज़र में', 'DISTRICT INNOVATION VIEW': 'जिला नवाचार दृश्य',
+  'Explore community challenges, active solution projects and priority domains across all 24 districts.': 'सभी 24 जिलों में सामुदायिक चुनौतियाँ, सक्रिय समाधान परियोजनाएँ और प्राथमिक क्षेत्र देखें।',
+  'Platform snapshot · illustrative data': 'प्लेटफ़ॉर्म स्नैपशॉट · उदाहरणात्मक डेटा', 'Districts connected': 'जुड़े हुए जिले',
+  'Problems submitted': 'दर्ज समस्याएँ', 'Active solution projects': 'सक्रिय समाधान परियोजनाएँ', 'Pilots in the field': 'क्षेत्र में पायलट',
+  'Selected district': 'चयनित जिला', 'Total problems': 'कुल समस्याएँ', 'Field pilots': 'क्षेत्रीय पायलट',
+  'Leading problem domain': 'प्रमुख समस्या क्षेत्र', 'View district challenges': 'जिले की चुनौतियाँ देखें', 'District Profiles': 'जिला प्रोफ़ाइल',
+  'Select a district to view its innovation snapshot': 'जिले का नवाचार स्नैपशॉट देखने के लिए जिला चुनें', 'STATEWIDE VIEW': 'राज्यव्यापी दृश्य',
+  'Problems by domain': 'क्षेत्र के अनुसार समस्याएँ', 'Explore all 25 problem domains': 'सभी 25 समस्या क्षेत्र देखें',
+  'Agriculture': 'कृषि', 'Water Management': 'जल प्रबंधन', 'Healthcare': 'स्वास्थ्य सेवा', 'Education': 'शिक्षा', 'Sanitation': 'स्वच्छता',
+  'Rural Livelihoods': 'ग्रामीण आजीविका', 'Environment': 'पर्यावरण', 'Urban Infrastructure': 'शहरी अवसंरचना',
   'Your full name': 'आपका पूरा नाम', '10-digit mobile number': '10 अंकों का मोबाइल नंबर', 'Your password': 'आपका पासवर्ड',
   'At least 8 characters': 'कम से कम 8 अक्षर', 'Close authentication': 'प्रवेश विंडो बंद करें', 'Hide password': 'पासवर्ड छिपाएँ', 'Show password': 'पासवर्ड दिखाएँ',
+  'OPEN INNOVATION CATALOGUE': 'खुला नवाचार संग्रह', 'Choose a challenge.': 'एक चुनौती चुनें।', 'Build what matters.': 'सार्थक समाधान बनाएँ।',
+  'Explore public problem statements contributed by communities across Jharkhand. Research, collaborate and develop solutions with measurable social impact.': 'झारखंड के समुदायों द्वारा प्रस्तुत सार्वजनिक समस्याएँ देखें। शोध और सहयोग से मापने योग्य सामाजिक प्रभाव वाले समाधान विकसित करें।',
+  'Add a new challenge': 'नई चुनौती जोड़ें', 'No account required to browse': 'देखने के लिए खाते की आवश्यकता नहीं', 'public challenges': 'सार्वजनिक चुनौतियाँ',
+  'PROBLEM STATEMENTS': 'समस्या विवरण', 'Find a problem worth solving': 'समाधान योग्य समस्या खोजें', 'Search by challenge ID, keyword, domain or district.': 'चुनौती आईडी, शब्द, क्षेत्र या जिले से खोजें।',
+  'All domains': 'सभी क्षेत्र', 'All statuses': 'सभी स्थितियाँ', 'Clear filters': 'फ़िल्टर हटाएँ', 'Updated automatically from public submissions': 'सार्वजनिक प्रस्तुतियों से स्वतः अपडेट',
+  'Loading public challenges…': 'सार्वजनिक चुनौतियाँ लोड हो रही हैं…', 'People affected': 'प्रभावित लोग', 'Under review': 'समीक्षाधीन', 'View statement': 'विवरण देखें',
+  'No challenges match these filters': 'इन फ़िल्टर से कोई चुनौती नहीं मिली', 'Try a broader keyword or clear the selected filters.': 'दूसरा शब्द खोजें या फ़िल्टर हटाएँ।',
+  'Problem statement': 'समस्या विवरण', 'Save challenge': 'चुनौती सहेजें', 'Saved': 'सहेजा गया', 'Work on a solution': 'समाधान पर कार्य करें',
+  'START INNOVATING': 'नवाचार शुरू करें', 'Develop a solution concept': 'समाधान अवधारणा विकसित करें', 'Concept title': 'अवधारणा शीर्षक',
+  'Your proposed approach': 'आपका प्रस्तावित तरीका', 'Skills or technology': 'कौशल या तकनीक', 'Team or institution': 'टीम या संस्थान', 'Save solution concept': 'समाधान अवधारणा सहेजें',
+  'Open to everyone': 'सभी के लिए खुला',
+  'Challenge ID': 'चुनौती आईडी', 'Department / Source': 'विभाग / स्रोत', 'Action': 'कार्रवाई', 'View': 'देखें',
+  'Community Submission': 'सामुदायिक प्रस्तुति', 'Citizen / Community': 'नागरिक / समुदाय',
+  'YOUR SUBMISSIONS': 'आपकी प्रस्तुतियाँ', 'A clear view of every problem you have raised and what happens next.': 'आपके द्वारा दर्ज हर समस्या और आगे की कार्रवाई का स्पष्ट विवरण।',
+  'All problems': 'सभी समस्याएँ', 'Submitted by you': 'आपके द्वारा प्रस्तुत', 'In progress': 'कार्य प्रगति पर', 'Moving towards a solution': 'समाधान की ओर अग्रसर',
+  'Completed outcomes': 'पूर्ण परिणाम', 'Your problem tracker': 'आपका समस्या ट्रैकर', 'Follow verification, assignment and solution progress.': 'सत्यापन, आवंटन और समाधान की प्रगति देखें।',
+  'Progress': 'प्रगति', 'View submission details': 'प्रस्तुति विवरण देखें',
+  'Visibility': 'दृश्यता', 'Public challenge?': 'सार्वजनिक', 'Public challenge': 'सार्वजनिक चुनौती', 'Private': 'निजी', 'Saved on this device': 'इस डिवाइस पर सहेजा गया',
+  'No matching problems': 'कोई मेल खाती समस्या नहीं', 'No problems submitted yet': 'अभी कोई समस्या दर्ज नहीं हुई', 'Submit your first problem': 'अपनी पहली समस्या दर्ज करें',
 }
 
 const reverseHindi = Object.fromEntries(Object.entries(hindi).map(([english, translation]) => [translation, english]))
@@ -132,10 +168,9 @@ export function LanguageProvider({ children }) {
     document.documentElement.lang = language === 'hi' ? 'hi' : 'en'
     translateTree(document.body, language)
     const observer = new MutationObserver(mutations => mutations.forEach(mutation => {
-      if (mutation.type === 'characterData') translateTree(mutation.target.parentElement, language)
       mutation.addedNodes.forEach(node => translateTree(node.nodeType === Node.TEXT_NODE ? node.parentElement : node, language))
     }))
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    observer.observe(document.body, { childList: true, subtree: true })
     return () => observer.disconnect()
   }, [language])
   const value = useMemo(() => ({ language, setLanguage, toggleLanguage: () => setLanguage(value => value === 'en' ? 'hi' : 'en') }), [language])
