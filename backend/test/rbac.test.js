@@ -25,6 +25,7 @@ const matches = (row, where) => Object.entries(where).every(([key, value]) => {
   if (key === "AND") return value.every(condition => matches(row, condition));
   if (key === "OR") return value.some(condition => matches(row, condition));
   if (value?.contains !== undefined) return row[key].toLowerCase().includes(value.contains.toLowerCase());
+  if (value?.not !== undefined) return row[key] !== value.not;
   return row[key] === value;
 });
 
@@ -95,14 +96,23 @@ const request = (method, path, role, body, claimedRole = role) => fetch(`${baseU
 });
 const problemPath = "/api/problems";
 
-test("every problem operation and attachment requires authentication", async () => {
+test("every private problem operation and attachment requires authentication", async () => {
   for (const [method, path] of [
-    ["GET", problemPath], ["POST", problemPath], ["GET", `${problemPath}/public`],
+    ["GET", problemPath], ["POST", problemPath],
     ["PATCH", `${problemPath}/public`], ["DELETE", `${problemPath}/public`],
     ["PATCH", `${problemPath}/public/verify`], ["POST", `${problemPath}/public/upvote`],
     ["POST", `${problemPath}/public/comment`], ["POST", `${problemPath}/public/feedback`],
     ["GET", attachmentUrl], ["HEAD", attachmentUrl], ["GET", "/api/auth/me"],
   ]) assert.equal((await request(method, path)).status, 401, `${method} ${path}`);
+  assert.deepEqual(writes, []);
+});
+
+test("public challenge catalogue is readable without authentication and excludes private or deleted problems", async () => {
+  const response = await request("GET", `${problemPath}/public`);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.data.map(row => row.id), ["public", "unrelated"]);
+  assert.equal(body.pagination.total, 2);
   assert.deepEqual(writes, []);
 });
 

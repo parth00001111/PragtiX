@@ -9,6 +9,10 @@ import {
   upvoteProblem,
   addComment,
   addFeedback,
+  getPublicProblems,
+  getSolutionIdeas,
+  addSolutionIdea,
+  getMySolutionIdeas,
 } from "../controller/problemController.js";
 import {
   createProblemSchema,
@@ -24,7 +28,11 @@ import { ALL_ROLES, STAFF_ROLES } from "../config/rbac.js";
 import { requireProblemAccess } from "../middleware/problemAccessMiddleware.js";
 
 const router = express.Router();
+router.get("/public", getPublicProblems);
+router.get("/public/:id/ideas", getSolutionIdeas);
 router.use(protect, authorize(...ALL_ROLES));
+router.get("/ideas/mine", getMySolutionIdeas);
+router.post("/:id/ideas", requireProblemAccess(), addSolutionIdea);
 
 // Every supported role can submit; reads and changes also check problem access.
 router.post(
