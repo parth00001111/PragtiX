@@ -1,4 +1,4 @@
-const OPENAI_URL = "https://api.openai.com/v1/responses";
+const GEMINI_API_ROOT = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const SYSTEM_INSTRUCTIONS = `You are Samadhan Sahayak, the official help assistant inside SamadhanSetu, Jharkhand's societal innovation collaboration portal.
 
@@ -37,48 +37,49 @@ export const detectChatLanguage = (text = "") => {
   return "en";
 };
 
-const extractText = (response) => response?.output
-  ?.flatMap((item) => item?.content || [])
-  .filter((item) => item?.type === "output_text")
-  .map((item) => item.text)
+const extractText = (response) => response?.candidates
+  ?.flatMap((candidate) => candidate?.content?.parts || [])
+  .map((part) => part?.text || "")
   .join("\n")
   .trim();
 
 export const fallbackChatReply = (message) => FALLBACKS[detectChatLanguage(message)];
 
 export async function createChatReply({ message, history = [] }) {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return { reply: fallbackChatReply(message), mode: "fallback" };
   }
 
-  const input = [
-    ...history.map(({ role, content }) => ({ role, content })),
-    { role: "user", content: message },
+  const contents = [
+    ...history.map(({ role, content }) => ({
+      role: role === "assistant" ? "model" : "user",
+      parts: [{ text: content }],
+    })),
+    { role: "user", parts: [{ text: message }] },
   ];
-  const response = await fetch(OPENAI_URL, {
+  const model = process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash";
+  const response = await fetch(`${GEMINI_API_ROOT}/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "x-goog-api-key": process.env.GEMINI_API_KEY,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_CHAT_MODEL || "gpt-5-mini",
-      instructions: SYSTEM_INSTRUCTIONS,
-      input,
-      max_output_tokens: 500,
-      store: false,
+      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTIONS }] },
+      contents,
+      generationConfig: { maxOutputTokens: 500, temperature: 0.35 },
     }),
     signal: AbortSignal.timeout(25_000),
   });
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(data?.error?.message || "AI provider request failed");
+    const error = new Error(data?.error?.message || "Gemini API request failed");
     error.status = response.status;
     throw error;
   }
 
   const reply = extractText(data);
-  if (!reply) throw new Error("AI provider returned an empty response");
+  if (!reply) throw new Error("Gemini returned an empty or blocked response");
   return { reply, mode: "ai" };
 }
